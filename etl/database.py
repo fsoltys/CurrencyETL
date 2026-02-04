@@ -44,14 +44,23 @@ class DBManager:
             logger.debug("No new currencies to insert.")
             return
 
-        logger.info(f"Inserting {len(new_currencies)} new currencies into dim_currency.")
+        logger.debug(f"Preparing to insert {len(new_currencies)} new currencies into dim_currency.")
 
         query = text("""INSERT INTO dim_currency (currency_code, currency_name)
                         VALUES (:code, :name)
                         ON CONFLICT (currency_code) DO NOTHING;""")
 
         with self.get_engine().begin() as connection:
-            connection.execute(query, new_currencies)
+            result = connection.execute(query, new_currencies)
+
+            inserted_count = result.rowcount
+            total_count = len(new_currencies)
+            skipped_count = total_count - inserted_count
+
+            if inserted_count > 0:
+                logger.info(f"New currencies added: {inserted_count}. (Skipped duplicates: {skipped_count})")
+            else:
+                logger.info(f"No new currencies added. All {total_count} were duplicates.")
 
         logger.debug("Finished inserting new currencies.")
 
@@ -62,13 +71,20 @@ class DBManager:
             logger.warning("Received empty list of exchange rates. Skipping insert.")
             return
 
-        logger.info(f"Inserting {len(fact_records)} exchange rate records into facts table.")
+        logger.info(f"Preparing to insert {len(fact_records)} exchange rate records into facts table.")
 
         query = text("""INSERT INTO fact_exchange_rate (currency_id, rate, rate_date)
                         VALUES (:currency_id, :rate, :date)
                         ON CONFLICT (currency_id, rate_date) DO NOTHING;""")
 
         with self.get_engine().begin() as connection:
-            connection.execute(query, fact_records)
+            result = connection.execute(query, fact_records)
+
+            inserted_count = result.rowcount
+            total_count = len(fact_records)
+            skipped_count = total_count - inserted_count
+
+            logger.info(
+                f"Fact Table Stats: Inserted {inserted_count} rows. Skipped {skipped_count} duplicates (already existing).")
 
         logger.debug("Finished inserting exchange rates.")
