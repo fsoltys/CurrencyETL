@@ -1,0 +1,39 @@
+services:
+  db:
+    image: postgres:15
+    container_name: nbp_postgres_db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "${POSTGRES_PORT}:${POSTGRES_PORT}"
+    volumes:
+      - ./pg_data:/var/lib/postgresql/data
+      - ./init_scripts:/docker-entrypoint-initdb.d
+    networks:
+      - nbp_net
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  etl:
+    build: ./etl
+    container_name: nbp_etl_cron
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - nbp_net
+    environment:
+      DB_HOST: ${POSTGRES_HOST}
+      DB_NAME: ${POSTGRES_DB}
+      DB_USER: ${POSTGRES_USER}
+      DB_PASS: ${POSTGRES_PASSWORD}
+
+networks:
+  nbp_net:
+    driver: bridge
